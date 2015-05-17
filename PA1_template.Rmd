@@ -7,19 +7,104 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+```{r}
+d <- read.csv("activity.csv",header=TRUE,colClasses=c("integer","Date","integer"))
+d["i_factor"] = as.factor(d$interval)
+d$wd = weekdays(d$date)
+d$weekend = "weekday"
+d$weekend[(d$wd == "Sonntag") | (d$wd=="Samstag")] = "weekend"
+d$weekend = as.factor(d$weekend)
+d_agg_sum <- aggregate(d[1],list(d$date),FUN=sum, na.rm=TRUE)
+```
 
 ## What is mean total number of steps taken per day?
+You'll find the total number of steps taken per day in the following table.
 
+```{r, results='asis'}
+library(xtable)
+xt <- xtable(d_agg_sum)
+print(xt, type="html")
+```
 
+A histogram of the total number of steps taken each day:
+```{r}
+hist(d_agg_sum$steps)
+```
+
+The mean of the total number of steps taken per day is `r mean(d_agg_sum$steps)`.
+
+The median of the total number of steps taken per day is `r median(d_agg_sum$steps)`.
 
 ## What is the average daily activity pattern?
+
+```{r}
+ts <- aggregate(d$steps,list(d$interval),FUN=mean,na.rm=TRUE)
+plot(ts,type='l',xlab = "Interval",ylab = "avg steps across all days")
+```
+
+Interval `r ts[ts[2]==max(ts[2]),][1]` contains the maximum average.
 
 
 
 ## Imputing missing values
 
+There are `r nrow(d)-nrow(na.omit(d))` rows containing missing values.
+
+The missing values are filled with the mean value of that interval across all days in the dataset.
+
+```{r}
+for (i in 1:nrow(d)) {
+  if (is.na(d$steps[i])) {
+    # interval id
+    iv <- d$interval[i]
+    
+    # mean for this interval
+    steps_mean <- ts[ts[1]==iv]
+    
+    d$steps[i]<-steps_mean[2]
+  }
+}
+```
+
+A histogram of the total number of steps taken each day:
+
+```{r}
+#date_steps_imp <- aggregate(steps ~ date, d, sum)
+date_steps_imp <- aggregate(d[1],list(d$date),FUN=sum)
+hist(date_steps_imp$steps)
+
+
+```
+
+Mean:
+```{r}
+# Mean of steps per day imputed
+mean(date_steps_imp$steps)
+
+# Mean of steps per day (w/ NA)
+mean(d_agg_sum$steps)
+```
+The mean is raised by ~1500 steps
+
+Median:
+```{r}
+# Median of steps per day imputed
+median(date_steps_imp$steps)
+
+# Median of steps per day (w/ NA)
+median(d_agg_sum$steps)
+```
+Median is raised.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+ts_imputed <- aggregate(steps ~ interval+weekend, d, mean)
+
+# make the panel plot for weekdays and weekends
+library(ggplot2)
+
+qplot(interval, steps, data=ts_imputed, geom=c("line"), xlab="Interval", 
+      ylab="Number of steps", main="") + facet_wrap(~ weekend, ncol=1)
+```
